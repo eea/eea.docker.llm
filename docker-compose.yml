@@ -1,0 +1,160 @@
+services:
+  vllm:
+    image: vllm/vllm-openai:v0.8.0
+    container_name: vllm_server
+    restart: unless-stopped
+#   network_mode: host # required by RDMA
+#   privileged: true # required by RDMA
+    ipc: host
+    shm_size: '60g'
+    ports:
+      - "8000:8000"
+    env_file: ./.env
+    volumes:
+      - ./data/models:/models
+      - ./data/.cache:/root/.cache
+    command: >
+      --host 0.0.0.0
+      --port 8000
+      --tensor-parallel-size 2
+      --gpu-memory-utilization 0.8
+      --model mistralai/Mistral-Small-3.1-24B-Instruct-2503
+      --tokenizer_mode mistral
+      --config_format mistral
+      --load_format mistral
+      --tool-call-parser mistral
+      --enable-auto-tool-choice
+      --limit_mm_per_prompt 'image=10'
+      --trust_remote_code
+      --max-model-len=80000
+#     --quantization=fp8
+#     --kv_cache_dtype=fp8
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=0
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  halloumi:
+    container_name: halloumi
+    image: vllm/vllm-openai:v0.8.4
+    restart: unless-stopped
+#   network_mode: host # required by RDMA
+#   privileged: true # required by RDMA
+    ipc: host
+    shm_size: '60g'
+    ports:
+      - "9000:8000"
+    env_file: ./.env
+    volumes:
+      - ./data/models:/models
+      - ./data/.cache:/root/.cache
+    command: >
+      --host 0.0.0.0
+      --port 8000
+      --tensor-parallel-size 2
+      --model oumi-ai/HallOumi-8B
+      --trust_remote_code
+      --max-model-len=50000
+    # --quantization=fp8
+    # --kv_cache_dtype=fp8
+    # --max_model_len=10000
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  halloumi-embed:
+    container_name: halloumi-embed
+    image: vllm/vllm-openai:v0.8.4
+    restart: unless-stopped
+#   network_mode: host # required by RDMA
+#   privileged: true # required by RDMA
+    ipc: host
+    shm_size: '60g'
+    ports:
+      - "9001:8000"
+    env_file: ./.env
+    volumes:
+      - ./data/models:/models
+      - ./data/.cache:/root/.cache
+    command: >
+      --host 0.0.0.0
+      --port 8000
+      --tensor-parallel-size 1
+      --model oumi-ai/HallOumi-8B-classifier
+      --trust_remote_code
+      --task=embed
+      --served-model-name=custom/HallOumi-8B-classifier
+      --quantization=fp8
+      --kv_cache_dtype=fp8
+      --max-model-len=50000
+#     --gpu-memory-utilization 0.1
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=0
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+
+#     --model mistralai/Mistral-Small-3.1-24B-Instruct-2503
+#     --tokenizer_mode mistral
+#     --config_format mistral
+#     --load_format mistral
+#     --tool-call-parser mistral
+#     --enable-auto-tool-choice
+#     --limit_mm_per_prompt 'image=10'
+
+#     --model meta-llama/Llama-3.3-70B-Instruct
+#     --max-model-len 8192
+
+  guard:
+    image: vllm/vllm-openai:v0.8.0
+    container_name: vllm_guard
+    restart: unless-stopped
+    ipc: host
+  #shm_size: '60g'
+    ports:
+      - "8002:8000"
+    env_file: ./.env_eea
+    volumes:
+      - ./data/models:/models
+      - ./data/.cache:/root/.cache
+    command: >
+      --host 0.0.0.0
+      --port 8000
+      --tensor-parallel-size 2
+      --model meta-llama/Llama-Guard-3-1B
+      --max-num-seqs=1
+      --gpu-memory-utilization=0.05
+      --max-num-batched-tokens=2000
+      --max-model-len=2000
+      --kv-cache-dtype=fp8
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+
